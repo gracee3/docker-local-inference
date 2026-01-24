@@ -1,4 +1,4 @@
-# vLLM Qwen2.5-14B-Instruct-AWQ Server
+# vLLM Qwen Server (text + vision)
 # Tuned for RTX 5000 16GB + 96GB RAM
 
 IMAGE_NAME := local/vllm-qwen

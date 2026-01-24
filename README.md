@@ -1,6 +1,6 @@
 # docker-vllm-qwen
 
-Minimal Docker wrapper for running Qwen models with [vLLM](https://github.com/vllm-project/vllm).
+Minimal Docker wrapper for running Qwen family models with [vLLM](https://github.com/vllm-project/vllm).
 
 Supports both **text** and **vision** models. Model weights are **bind-mounted** from your host filesystem (not baked into the image), so you can swap models without rebuilding.
 
@@ -8,11 +8,12 @@ Tuned for **RTX 5000 16GB** (or similar ~16GB VRAM GPUs).
 
 ## Supported Models
 
-| Model | Type | VRAM | Notes |
-|-------|------|------|-------|
-| Qwen2.5-14B-Instruct-AWQ | Text | ~14GB | Default, AWQ quantized |
-| Qwen2.5-7B-Instruct-AWQ | Text | ~7GB | Smaller variant |
-| Qwen2-VL-2B-Instruct | Vision | ~4GB | Multimodal (text + images) |
+| Model | Type | Notes |
+|-------|------|-------|
+| Qwen2.5-14B-Instruct-AWQ | Text | Default text model (AWQ quantized) |
+| Qwen2.5-7B-Instruct-AWQ | Text | Smaller text variant |
+| Qwen2-VL-7B-Instruct-AWQ | Vision | Larger multimodal model (text + images) |
+| Qwen2-VL-2B-Instruct | Vision | Smaller multimodal model (text + images) |
 
 ## Quick Start
 
@@ -20,10 +21,12 @@ Tuned for **RTX 5000 16GB** (or similar ~16GB VRAM GPUs).
 # Clone a model (requires git-lfs)
 git lfs install
 
-# Text model (14B AWQ)
+# Text models
 git clone https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-AWQ /data/models/Qwen2.5-14B-Instruct-AWQ
+git clone https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-AWQ /data/models/Qwen2.5-7B-Instruct-AWQ
 
-# Vision model (2B)
+# Vision models
+git clone https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct-AWQ /data/models/Qwen2-VL-7B-Instruct-AWQ
 git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct /data/models/Qwen2-VL-2B-Instruct
 
 # Build and run
@@ -40,10 +43,11 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## Running the Vision Model
 
-To run the vision model instead of the default text model:
+To run a vision model instead of the default text model:
 
 ```bash
-make run-detached MODEL_PATH=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
+make run-vision VISION_MODEL=/data/models/Qwen2-VL-7B-Instruct-AWQ
+make run-vision VISION_MODEL=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
 ```
 
 Or start manually:
@@ -96,7 +100,7 @@ curl http://localhost:8000/v1/chat/completions \
 ## Requirements
 
 - Docker with NVIDIA GPU support
-- ~16GB VRAM for 14B model, ~4GB for vision model
+- Sufficient VRAM for the model you choose (quantized models require less)
 - git-lfs for cloning models
 
 ## Configuration
@@ -106,14 +110,16 @@ Edit variables in `Makefile` or override at runtime:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL_PATH` | `/data/models/Qwen2.5-14B-Instruct-AWQ` | Path to model on host |
+| `VISION_MODEL` | `/data/models/Qwen2-VL-7B-Instruct-AWQ` | Vision model path for `make run-vision` |
 | `CACHE_PATH` | `~/.cache/vllm` | Cache directory for torch compile |
 | `GPU_MEM_UTIL` | `0.85` | GPU memory utilization (0.0-1.0) |
 | `MAX_MODEL_LEN` | `8192` | Maximum context length |
 | `PORT` | `8000` | Server port |
 
-Override example:
+Override examples:
 ```bash
 make run-detached MODEL_PATH=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
+make run-vision VISION_MODEL=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
 ```
 
 ## Makefile Targets
