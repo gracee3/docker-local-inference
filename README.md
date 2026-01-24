@@ -1,22 +1,30 @@
 # docker-vllm-qwen
 
-Minimal Docker wrapper for running [Qwen2.5-14B-Instruct-AWQ](https://modelscope.cn/models/Qwen/Qwen2.5-14B-Instruct-AWQ) with [vLLM](https://github.com/vllm-project/vllm).
+Minimal Docker wrapper for running Qwen models with [vLLM](https://github.com/vllm-project/vllm).
 
-Model weights are **bind-mounted** from your host filesystem (not baked into the image), so you can swap models without rebuilding.
+Supports both **text** and **vision** models. Model weights are **bind-mounted** from your host filesystem (not baked into the image), so you can swap models without rebuilding.
 
 Tuned for **RTX 5000 16GB** (or similar ~16GB VRAM GPUs).
+
+## Supported Models
+
+| Model | Type | VRAM | Notes |
+|-------|------|------|-------|
+| Qwen2.5-14B-Instruct-AWQ | Text | ~14GB | Default, AWQ quantized |
+| Qwen2.5-7B-Instruct-AWQ | Text | ~7GB | Smaller variant |
+| Qwen2-VL-2B-Instruct | Vision | ~4GB | Multimodal (text + images) |
 
 ## Quick Start
 
 ```bash
-# Clone the model (requires git-lfs)
+# Clone a model (requires git-lfs)
 git lfs install
 
-# Option A: From ModelScope
-git clone https://modelscope.cn/models/Qwen/Qwen2.5-14B-Instruct-AWQ /data/models/Qwen2.5-14B-Instruct-AWQ
+# Text model (14B AWQ)
+git clone https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-AWQ /data/models/Qwen2.5-14B-Instruct-AWQ
 
-# Option B: From HuggingFace
-#git clone https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-AWQ /data/models/Qwen2.5-14B-Instruct-AWQ
+# Vision model (2B)
+git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct /data/models/Qwen2-VL-2B-Instruct
 
 # Build and run
 make setup
@@ -30,12 +38,66 @@ curl http://localhost:8000/v1/chat/completions \
   -d '{"model": "/model", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
+## Running the Vision Model
+
+To run the vision model instead of the default text model:
+
+```bash
+make run-detached MODEL_PATH=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
+```
+
+Or start manually:
+
+```bash
+docker run -d \
+  --name vllm-vision \
+  --gpus all \
+  --ipc=host \
+  -p 8000:8000 \
+  -v /data/models/Qwen2-VL-2B-Instruct:/model:ro \
+  -v ~/.cache/vllm:/cache \
+  local/vllm-qwen:0.11.0 \
+  --model /model \
+  --host 0.0.0.0 --port 8000 \
+  --gpu-memory-utilization 0.85 \
+  --max-model-len 4096
+```
+
+### Testing Vision
+
+```bash
+# Install dependencies
+pip install httpx
+
+# Run vision test script
+python3 test_vision.py                    # Basic health check
+python3 test_vision.py /path/to/image.jpg # Test with an image
+```
+
+Example vision API call:
+
+```bash
+# Base64 encode an image and send to the API
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/model",
+    "messages": [{
+      "role": "user",
+      "content": [
+        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,<BASE64_IMAGE>"}},
+        {"type": "text", "text": "What is in this image?"}
+      ]
+    }],
+    "max_tokens": 200
+  }'
+```
+
 ## Requirements
 
 - Docker with NVIDIA GPU support
-- ~16GB VRAM (tested on RTX 5000)
-- ~10GB disk for model weights
-- git-lfs for cloning the model
+- ~16GB VRAM for 14B model, ~4GB for vision model
+- git-lfs for cloning models
 
 ## Configuration
 
@@ -44,14 +106,14 @@ Edit variables in `Makefile` or override at runtime:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL_PATH` | `/data/models/Qwen2.5-14B-Instruct-AWQ` | Path to model on host |
-| `CACHE_PATH` | `~/.cache/vllm` | Cache directory for torch compile, HF |
+| `CACHE_PATH` | `~/.cache/vllm` | Cache directory for torch compile |
 | `GPU_MEM_UTIL` | `0.85` | GPU memory utilization (0.0-1.0) |
-| `MAX_MODEL_LEN` | `4096` | Maximum context length |
+| `MAX_MODEL_LEN` | `8192` | Maximum context length |
 | `PORT` | `8000` | Server port |
 
 Override example:
 ```bash
-make run-detached GPU_MEM_UTIL=0.88 MAX_MODEL_LEN=6144
+make run-detached MODEL_PATH=/data/models/Qwen2-VL-2B-Instruct MAX_MODEL_LEN=4096
 ```
 
 ## Makefile Targets
@@ -82,13 +144,13 @@ The default settings are conservative for stability:
 
 **If stable and want more context:**
 - Try `MAX_MODEL_LEN=6144` with `--enforce-eager`
-- 8192 context will OOM during CUDA graph capture on 16GB
+- 8192 context may OOM during CUDA graph capture on 16GB
 
 ## API
 
 The server exposes an OpenAI-compatible API:
 
-- `POST /v1/chat/completions` - Chat completions
+- `POST /v1/chat/completions` - Chat completions (text and vision)
 - `POST /v1/completions` - Text completions
 - `GET /v1/models` - List models
 - `GET /health` - Health check

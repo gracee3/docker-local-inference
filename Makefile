@@ -11,9 +11,9 @@ MODEL_PATH := /data/models/Qwen2.5-14B-Instruct-AWQ
 CACHE_PATH := $(HOME)/.cache/vllm
 
 # vLLM settings (tuned for RTX 5000 16GB)
-# Note: 8192 context OOMs on warmup; 4096 is stable
+# Note: 8192 context may OOM on warmup; 4096 is stable
 GPU_MEM_UTIL := 0.85
-MAX_MODEL_LEN := 4096
+MAX_MODEL_LEN := 8192
 PORT := 8000
 
 # Tuning notes (RTX 5000 16GB):
