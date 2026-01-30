@@ -1,4 +1,4 @@
-# docker-vllm-qwen
+# docker-local-inference
 
 Minimal Docker wrapper for running local LLM and embedding models with [vLLM](https://github.com/vllm-project/vllm) and [llama.cpp](https://github.com/ggml-org/llama.cpp).
 
