@@ -9,4 +9,4 @@ if [ -z "$MODEL_FILE" ]; then
   exit 1
 fi
 echo "Using model: $MODEL_FILE"
-exec llama-server --model "$MODEL_FILE" "$@"
+exec /app/llama-server --model "$MODEL_FILE" "$@"
