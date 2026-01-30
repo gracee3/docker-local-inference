@@ -1,0 +1,10 @@
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda
+
+EXPOSE 8080
+
+COPY scripts/llama-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# /model is a directory bind-mounted from host; entrypoint finds the .gguf inside
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["--host", "0.0.0.0", "--port", "8080"]

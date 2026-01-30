@@ -1,0 +1,65 @@
+# Optional: run both services with `docker compose up -d`
+# Or individually: `docker compose up -d llm` / `docker compose up -d embed`
+#
+# Build images first:
+#   make build        # vLLM image
+#   make build-llama  # llama.cpp image
+
+services:
+  llm:
+    image: local/vllm-qwen:0.11.0
+    container_name: vllm-qwen
+    ipc: host
+    ports:
+      - "${LLM_PORT:-8000}:8000"
+    volumes:
+      - ${LLM_MODEL_PATH:-/data/models/Qwen2.5-14B-Instruct-AWQ}:/model:ro
+      - ${HOME}/.cache/vllm:/cache
+    command:
+      - --model
+      - /model
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "${GPU_MEM_UTIL:-0.85}"
+      - --max-model-len
+      - "${MAX_MODEL_LEN:-8192}"
+      - --enable-prefix-caching
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  embed:
+    image: local/llama-server:latest
+    container_name: llama-embed
+    ports:
+      - "${EMBED_PORT:-8001}:8080"
+    volumes:
+      - ${EMBED_MODEL_PATH:-/data/models/nomic-embed-code-Q6_K}:/model:ro
+    command:
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8080"
+      - --n-gpu-layers
+      - "999"
+      - --ctx-size
+      - "8192"
+      - --embedding
+      - --pooling
+      - "last"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+    restart: unless-stopped
