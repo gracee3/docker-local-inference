@@ -25,11 +25,13 @@ endif
 # Usage: make run-llm PRESET=QWEN_14B_AWQ GPU=0
 #        make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
 
-PRESET_QWEN_14B_AWQ         := /data/models/Qwen2.5-14B-Instruct-AWQ
+PRESET_QWEN_14B_AWQ         := /data/models/Qwen/Qwen2.5-14B-Instruct-AWQ/
 PRESET_QWEN_7B_AWQ          := /data/models/Qwen2.5-7B-Instruct-AWQ
 PRESET_QWEN_VL_2B           := /data/models/Qwen2-VL-2B-Instruct
 PRESET_QWEN_CODER_7B_Q8     := /data/models/Qwen2.5-Coder-7B-Instruct-Q8_0
 PRESET_NOMIC_EMBED_CODE_Q6  := /data/models/nomic-embed-code-Q6_K
+PRESET_QWEN3_VL_30B_FP8     := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
+PRESET_DEVSTRAL_SMALL_24B   := /data/models/mistralai/Devstral-Small-2-24B-Instruct-2512/
 
 # Resolve PRESET → MODEL_PATH if set
 ifdef PRESET
@@ -40,14 +42,16 @@ ifdef PRESET
 endif
 
 # ── Paths (defaults if no PRESET) ──────────────────────
-MODEL_PATH   ?= /data/models/Qwen2.5-14B-Instruct-AWQ
+MODEL_PATH   ?= /data/models/Qwen/Qwen2.5-14B-Instruct-AWQ/
 CACHE_PATH   := $(HOME)/.cache/vllm
 
 # ── vLLM settings ──────────────────────────────────────
 # Note: 8192 context may OOM on warmup with 16GB VRAM; 4096 is stable
 GPU_MEM_UTIL := 0.85
 MAX_MODEL_LEN := 8192
+TP_SIZE      := 1
 PORT         := 8000
+EXTRA_ARGS   :=
 
 # ── llama.cpp settings ─────────────────────────────────
 LLAMA_PORT         := 8001
@@ -61,7 +65,7 @@ CONTAINERS     := vllm-qwen vllm-vision llama-llm llama-embed
 
 # Vision model configuration
 # VISION_MODEL := /data/models/Qwen2-VL-7B-Instruct-AWQ
-VISION_MODEL := /data/models/hf/Qwen3-VL-30B-A3B-Thinking
+VISION_MODEL := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
 
 # Tuning notes (RTX 5000 16GB / RTX 3090 24GB):
 #   Default (stable): GPU_MEM_UTIL=0.85, MAX_MODEL_LEN=4096
@@ -69,7 +73,7 @@ VISION_MODEL := /data/models/hf/Qwen3-VL-30B-A3B-Thinking
 #   Experimental: GPU_MEM_UTIL=0.88, MAX_MODEL_LEN=6144 (may OOM on warmup)
 
 .PHONY: setup build build-llama \
-	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm \
+	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 \
 	stop stop-all stop-llm stop-embed stop-llama-llm \
 	logs logs-llm logs-embed \
 	healthcheck healthcheck-llm healthcheck-embed \
@@ -167,7 +171,16 @@ run-llm: stop-llm
 		--host 0.0.0.0 --port 8000 \
 		--gpu-memory-utilization $(GPU_MEM_UTIL) \
 		--max-model-len $(MAX_MODEL_LEN) \
-		--enable-prefix-caching
+		--tensor-parallel-size $(TP_SIZE) \
+		--enable-prefix-caching \
+		$(EXTRA_ARGS)
+
+# Qwen3-VL 30B FP8 (recommended on 2 GPUs)
+# Example:
+#   make run-qwen3
+#   make run-qwen3 GPU=0 TP_SIZE=1
+run-qwen3:
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 MAX_MODEL_LEN=4096
 
 # ── Run: llama.cpp embedding server ────────────────────
 
