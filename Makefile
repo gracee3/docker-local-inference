@@ -60,7 +60,8 @@ CONTAINER_NAME := vllm-qwen
 CONTAINERS     := vllm-qwen vllm-vision llama-llm llama-embed
 
 # Vision model configuration
-VISION_MODEL := /data/models/Qwen2-VL-7B-Instruct-AWQ
+# VISION_MODEL := /data/models/Qwen2-VL-7B-Instruct-AWQ
+VISION_MODEL := /data/models/hf/Qwen3-VL-30B-A3B-Thinking
 
 # Tuning notes (RTX 5000 16GB / RTX 3090 24GB):
 #   Default (stable): GPU_MEM_UTIL=0.85, MAX_MODEL_LEN=4096
