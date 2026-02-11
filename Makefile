@@ -75,7 +75,7 @@ VISION_MODEL := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
 #   Experimental: GPU_MEM_UTIL=0.88, MAX_MODEL_LEN=6144 (may OOM on warmup)
 
 .PHONY: setup build build-llama \
-	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-sidecar \
+	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-balanced run-qwen14-sidecar \
 	stop stop-all stop-llm stop-embed stop-llama-llm stop-small \
 	logs logs-llm logs-embed logs-small \
 	healthcheck healthcheck-llm healthcheck-embed healthcheck-small \
@@ -184,13 +184,19 @@ run-llm: stop-llm
 run-qwen3:
 	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
 
-# Qwen3-VL 30B FP8 (higher-throughput profile, lower headroom)
+# Qwen3-VL 30B FP8 (still capped to 2 sequences, less conservative headroom)
 run-qwen3-fast:
-	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.85 MAX_MODEL_LEN=4096
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.83 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
 
-# Qwen2.5-14B-AWQ on a single GPU for smaller tasks
+# Qwen2.5-14B-AWQ on a single GPU, context-first profile
+# Concurrency is intentionally capped at 1 for max safety/headroom.
 run-qwen14:
-	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=8192
+	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.76 MAX_MODEL_LEN=12288 EXTRA_ARGS="--max-num-seqs 1"
+
+# Qwen2.5-14B-AWQ on a single GPU, balanced profile
+# Keeps concurrency at 2 while preserving good context window.
+run-qwen14-balanced:
+	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.78 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 2"
 
 # Optional sidecar small model on a separate port so it can run alongside Qwen3
 run-qwen14-sidecar: stop-small
@@ -205,10 +211,11 @@ run-qwen14-sidecar: stop-small
 		$(IMAGE) \
 		--model /model \
 		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization 0.75 \
-		--max-model-len 4096 \
+		--gpu-memory-utilization 0.68 \
+		--max-model-len 6144 \
 		--tensor-parallel-size 1 \
-		--enable-prefix-caching
+		--enable-prefix-caching \
+		--max-num-seqs 1
 
 # ── Run: llama.cpp embedding server ────────────────────
 
