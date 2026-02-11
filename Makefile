@@ -61,7 +61,9 @@ LLAMA_POOLING      := last
 
 # ── Container names ────────────────────────────────────
 CONTAINER_NAME := vllm-qwen
-CONTAINERS     := vllm-qwen vllm-vision llama-llm llama-embed
+LLM_CONTAINER ?= vllm-qwen
+CONTAINERS     := vllm-qwen vllm-small vllm-vision llama-llm llama-embed
+SMALL_PORT     ?= 8002
 
 # Vision model configuration
 # VISION_MODEL := /data/models/Qwen2-VL-7B-Instruct-AWQ
@@ -73,10 +75,10 @@ VISION_MODEL := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
 #   Experimental: GPU_MEM_UTIL=0.88, MAX_MODEL_LEN=6144 (may OOM on warmup)
 
 .PHONY: setup build build-llama \
-	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 \
-	stop stop-all stop-llm stop-embed stop-llama-llm \
-	logs logs-llm logs-embed \
-	healthcheck healthcheck-llm healthcheck-embed \
+	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-sidecar \
+	stop stop-all stop-llm stop-embed stop-llama-llm stop-small \
+	logs logs-llm logs-embed logs-small \
+	healthcheck healthcheck-llm healthcheck-embed healthcheck-small \
 	models shell clean clean-all presets
 
 # ── Setup / Build ───────────────────────────────────────
@@ -159,7 +161,7 @@ run-experimental: stop-all
 
 run-llm: stop-llm
 	docker run -d \
-		--name vllm-qwen \
+		--name $(LLM_CONTAINER) \
 		$(GPU_FLAG) \
 		--ipc=host \
 		-p $(PORT):8000 \
@@ -175,12 +177,38 @@ run-llm: stop-llm
 		--enable-prefix-caching \
 		$(EXTRA_ARGS)
 
-# Qwen3-VL 30B FP8 (recommended on 2 GPUs)
+# Qwen3-VL 30B FP8 (safety-first profile on 2 GPUs)
 # Example:
 #   make run-qwen3
 #   make run-qwen3 GPU=0 TP_SIZE=1
 run-qwen3:
-	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 MAX_MODEL_LEN=4096
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+
+# Qwen3-VL 30B FP8 (higher-throughput profile, lower headroom)
+run-qwen3-fast:
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.85 MAX_MODEL_LEN=4096
+
+# Qwen2.5-14B-AWQ on a single GPU for smaller tasks
+run-qwen14:
+	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=8192
+
+# Optional sidecar small model on a separate port so it can run alongside Qwen3
+run-qwen14-sidecar: stop-small
+	docker run -d \
+		--name vllm-small \
+		--gpus '"device=0"' \
+		--ipc=host \
+		-p $(SMALL_PORT):8000 \
+		-v $(PRESET_QWEN_14B_AWQ):/model:ro \
+		-v $(CACHE_PATH):/cache \
+		--restart unless-stopped \
+		$(IMAGE) \
+		--model /model \
+		--host 0.0.0.0 --port 8000 \
+		--gpu-memory-utilization 0.75 \
+		--max-model-len 4096 \
+		--tensor-parallel-size 1 \
+		--enable-prefix-caching
 
 # ── Run: llama.cpp embedding server ────────────────────
 
@@ -226,8 +254,8 @@ stop-all:
 	@echo "All containers stopped"
 
 stop-llm:
-	docker stop vllm-qwen 2>/dev/null || true
-	docker rm vllm-qwen 2>/dev/null || true
+	docker stop $(LLM_CONTAINER) 2>/dev/null || true
+	docker rm $(LLM_CONTAINER) 2>/dev/null || true
 
 stop-embed:
 	docker stop llama-embed 2>/dev/null || true
@@ -236,6 +264,10 @@ stop-embed:
 stop-llama-llm:
 	docker stop llama-llm 2>/dev/null || true
 	docker rm llama-llm 2>/dev/null || true
+
+stop-small:
+	docker stop vllm-small 2>/dev/null || true
+	docker rm vllm-small 2>/dev/null || true
 
 # ── Logs ────────────────────────────────────────────────
 
@@ -249,10 +281,13 @@ logs:
 	echo "No running container found"
 
 logs-llm:
-	docker logs -f vllm-qwen
+	docker logs -f $(LLM_CONTAINER)
 
 logs-embed:
 	docker logs -f llama-embed
+
+logs-small:
+	docker logs -f vllm-small
 
 # ── Healthcheck ─────────────────────────────────────────
 
@@ -264,6 +299,9 @@ healthcheck-llm:
 
 healthcheck-embed:
 	@curl -sf http://localhost:$(LLAMA_PORT)/health && echo "healthy" || echo "unhealthy"
+
+healthcheck-small:
+	@curl -sf http://localhost:$(SMALL_PORT)/health && echo "healthy" || echo "unhealthy"
 
 # ── Utility ─────────────────────────────────────────────
 

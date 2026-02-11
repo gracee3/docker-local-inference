@@ -15,8 +15,10 @@ QWEN_CODER_7B_Q8             /data/models/Qwen2.5-Coder-7B-Instruct-Q8_0   llama
 NOMIC_EMBED_CODE_Q6          /data/models/nomic-embed-code-Q6_K             llama.cpp
 
 Usage:
-  make run-llm PRESET=QWEN_14B_AWQ GPU=0
-  make run-qwen3
+  make run-qwen3            # Qwen3 safe profile (concurrency capped via --max-num-seqs 2)
+  make run-qwen3-fast       # Qwen3 high-throughput profile
+  make run-qwen14           # Qwen2.5-14B single-GPU default
+  make run-qwen14-sidecar   # Qwen2.5-14B on :8002 alongside Qwen3
   make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
   make run-llama-llm PRESET=QWEN_CODER_7B_Q8 GPU=0
 EOF
