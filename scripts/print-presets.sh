@@ -6,13 +6,13 @@ Model Presets
 ─────────────────────────────────────────────────────────────────────────────────
 Preset Name                  Path                                           Runtime
 ──────────────────────────── ────────────────────────────────────────────── ────────
-QWEN_14B_AWQ                 /data/models/Qwen/Qwen2.5-14B-Instruct-AWQ/   vLLM
-QWEN_7B_AWQ                  /data/models/Qwen2.5-7B-Instruct-AWQ          vLLM
-QWEN_VL_2B                   /data/models/Qwen2-VL-2B-Instruct             vLLM
-QWEN3_VL_30B_FP8             /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/ vLLM
-DEVSTRAL_SMALL_24B           /data/models/mistralai/Devstral-Small-2-24B-Instruct-2512/ vLLM
-QWEN_CODER_7B_Q8             /data/models/Qwen2.5-Coder-7B-Instruct-Q8_0   llama.cpp
-NOMIC_EMBED_CODE_Q6          /data/models/nomic-embed-code-Q6_K             llama.cpp
+QWEN_14B_AWQ                 /data/models/qwen2p5-14b-instruct-awq          vLLM
+QWEN_7B_AWQ                  /data/models/qwen2p5-7b-instruct-awq           vLLM
+QWEN_VL_2B                   /data/models/qwen2-vl-2b-instruct              vLLM
+QWEN3_VL_30B_FP8             /data/models/qwen3-vl-30b-a3b-thinking-fp8     vLLM
+DEVSTRAL_SMALL_24B           /data/models/mistralai-devstral-small-2-24b-instruct-2512 vLLM
+QWEN_CODER_7B_Q8             /data/models/qwen2p5-coder-7b-instruct-q8-0    llama.cpp
+NOMIC_EMBED_CODE_Q6          /data/models/nomic-embed-code-q6-k             llama.cpp
 
 Usage:
   make run-qwen3            # Qwen3 safe profile (concurrency capped via --max-num-seqs 2)

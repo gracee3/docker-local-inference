@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Examples:
 #   ./scripts/get-hf-model.sh Qwen/Qwen2.5-14B-Instruct-AWQ
-#   ./scripts/get-hf-model.sh Qwen/Qwen2.5-7B-Instruct-AWQ /data/models/Qwen2.5-7B-Instruct-AWQ
+#   ./scripts/get-hf-model.sh Qwen/Qwen2.5-7B-Instruct-AWQ /data/models/qwen2p5-7b-instruct-awq
 
 REPO_ID="${1:?Usage: $0 <hf-repo-id> [dest-dir]}"
 DEST="${2:-/data/models/$(basename "$REPO_ID")}"

@@ -25,13 +25,13 @@ endif
 # Usage: make run-llm PRESET=QWEN_14B_AWQ GPU=0
 #        make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
 
-PRESET_QWEN_14B_AWQ         := /data/models/Qwen/Qwen2.5-14B-Instruct-AWQ/
-PRESET_QWEN_7B_AWQ          := /data/models/Qwen2.5-7B-Instruct-AWQ
-PRESET_QWEN_VL_2B           := /data/models/Qwen2-VL-2B-Instruct
-PRESET_QWEN_CODER_7B_Q8     := /data/models/Qwen2.5-Coder-7B-Instruct-Q8_0
-PRESET_NOMIC_EMBED_CODE_Q6  := /data/models/nomic-embed-code-Q6_K
-PRESET_QWEN3_VL_30B_FP8     := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
-PRESET_DEVSTRAL_SMALL_24B   := /data/models/mistralai/Devstral-Small-2-24B-Instruct-2512/
+PRESET_QWEN_14B_AWQ         := /data/models/qwen2p5-14b-instruct-awq
+PRESET_QWEN_7B_AWQ          := /data/models/qwen2p5-7b-instruct-awq
+PRESET_QWEN_VL_2B           := /data/models/qwen2-vl-2b-instruct
+PRESET_QWEN_CODER_7B_Q8     := /data/models/qwen2p5-coder-7b-instruct-q8-0
+PRESET_NOMIC_EMBED_CODE_Q6  := /data/models/nomic-embed-code-q6-k
+PRESET_QWEN3_VL_30B_FP8     := /data/models/qwen3-vl-30b-a3b-thinking-fp8
+PRESET_DEVSTRAL_SMALL_24B   := /data/models/mistralai-devstral-small-2-24b-instruct-2512
 
 # Resolve PRESET → MODEL_PATH if set
 ifdef PRESET
@@ -39,10 +39,13 @@ ifdef PRESET
   ifeq ($(MODEL_PATH),)
     $(error Unknown preset: $(PRESET). Run "make presets" to list available presets.)
   endif
+  ifeq ($(PRESET),DEVSTRAL_SMALL_24B)
+    IMAGE := vllm/vllm-openai:v0.12.0
+  endif
 endif
 
 # ── Paths (defaults if no PRESET) ──────────────────────
-MODEL_PATH   ?= /data/models/Qwen/Qwen2.5-14B-Instruct-AWQ/
+MODEL_PATH   ?= /data/models/qwen2p5-14b-instruct-awq
 CACHE_PATH   := $(HOME)/.cache/vllm
 
 # ── vLLM settings ──────────────────────────────────────
@@ -66,8 +69,8 @@ CONTAINERS     := vllm-qwen vllm-small vllm-vision llama-llm llama-embed
 SMALL_PORT     ?= 8002
 
 # Vision model configuration
-# VISION_MODEL := /data/models/Qwen2-VL-7B-Instruct-AWQ
-VISION_MODEL := /data/models/Qwen/Qwen3-VL-30B-A3B-Thinking-FP8/
+# VISION_MODEL := /data/models/qwen2-vl-7b-instruct-awq
+VISION_MODEL := /data/models/qwen3-vl-30b-a3b-thinking-fp8
 
 # Tuning notes (RTX 5000 16GB / RTX 3090 24GB):
 #   Default (stable): GPU_MEM_UTIL=0.85, MAX_MODEL_LEN=4096

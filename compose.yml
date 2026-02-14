@@ -13,7 +13,7 @@ services:
     ports:
       - "${LLM_PORT:-8000}:8000"
     volumes:
-      - ${LLM_MODEL_PATH:-/data/models/Qwen2.5-14B-Instruct-AWQ}:/model:ro
+      - ${LLM_MODEL_PATH:-/data/models/qwen2p5-14b-instruct-awq}:/model:ro
       - ${HOME}/.cache/vllm:/cache
     command:
       - --model
@@ -42,7 +42,7 @@ services:
     ports:
       - "${EMBED_PORT:-8001}:8080"
     volumes:
-      - ${EMBED_MODEL_PATH:-/data/models/nomic-embed-code-Q6_K}:/model:ro
+      - ${EMBED_MODEL_PATH:-/data/models/nomic-embed-code-q6-k}:/model:ro
     command:
       - --host
       - "0.0.0.0"
