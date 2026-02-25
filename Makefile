@@ -11,6 +11,10 @@ LLAMA_IMAGE_NAME := local/llama-server
 LLAMA_IMAGE_TAG  := latest
 LLAMA_IMAGE      := $(LLAMA_IMAGE_NAME):$(LLAMA_IMAGE_TAG)
 
+OPEN_WEBUI_IMAGE_NAME := ghcr.io/open-webui/open-webui
+OPEN_WEBUI_IMAGE_TAG  := main
+OPEN_WEBUI_IMAGE      := $(OPEN_WEBUI_IMAGE_NAME):$(OPEN_WEBUI_IMAGE_TAG)
+
 # ── GPU pinning ─────────────────────────────────────────
 # GPU=0, GPU=1, or GPU=all (default: 1)
 GPU := 1
@@ -68,10 +72,21 @@ LLAMA_N_GPU_LAYERS := 999
 LLAMA_CTX_SIZE     := 8192
 LLAMA_POOLING      := last
 
+# ── Open WebUI settings ───────────────────────────────
+OPEN_WEBUI_PORT := 3002
+OPEN_WEBUI_DATA := $(HOME)/.local/share/open-webui
+OPEN_WEBUI_HOST_ADDR := vllm-qwen
+OPEN_WEBUI_VLLM_BASE_URL := http://$(OPEN_WEBUI_HOST_ADDR):$(PORT)/v1
+OPEN_WEBUI_VLLM_API_KEY := local
+OPEN_WEBUI_PRESET ?= QWEN3_32B_AWQ
+OPEN_WEBUI_GPU ?= all
+DOCKER_NETWORK ?= local-inference-net
+
 # ── Container names ────────────────────────────────────
 CONTAINER_NAME := vllm-qwen
 LLM_CONTAINER ?= vllm-qwen
-CONTAINERS     := vllm-qwen llama-llm llama-embed
+OPEN_WEBUI_CONTAINER ?= open-webui
+CONTAINERS     := vllm-qwen llama-llm llama-embed open-webui
 
 # Tuning notes (RTX 5000 16GB / RTX 3090 24GB):
 #   Default (stable): GPU_MEM_UTIL=0.85, MAX_MODEL_LEN=4096
@@ -80,10 +95,13 @@ CONTAINERS     := vllm-qwen llama-llm llama-embed
 
 .PHONY: setup build build-llama \
 	run-llm run-vision run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-balanced \
-	run-qwen7b run-qwen2-vl-2b run-qwen2-vl-7b-awq run-devstral-small-24b run-deepseek run-phi3p5-mini run-qwen2p5-1p5b run-qwen3-32b run-qwen3-coder \
-	stop stop-all stop-llm stop-embed stop-llama-llm \
+	run-qwen7b run-qwen2-vl-2b run-qwen2-vl-7b-awq run-devstral-small-24b run-devstral-small-24b-fast run-deepseek run-phi3p5-mini run-qwen2p5-1p5b run-qwen3-32b run-qwen3-coder \
+	run-openwebui run-openwebui-with-llm \
+	open-openwebui \
+	stop stop-all stop-llm stop-embed stop-llama-llm stop-openwebui \
 	logs logs-llm logs-embed \
-	healthcheck healthcheck-llm healthcheck-embed \
+	logs-openwebui \
+	healthcheck healthcheck-llm healthcheck-embed healthcheck-openwebui \
 	models shell clean clean-all presets
 
 # ── Setup / Build ───────────────────────────────────────
@@ -100,8 +118,10 @@ build-llama:
 # ── Run: vLLM LLM server ───────────────────────────────
 
 run-llm: stop-llm
+	docker network inspect $(DOCKER_NETWORK) >/dev/null 2>&1 || docker network create $(DOCKER_NETWORK)
 	docker run -d \
 		--name $(LLM_CONTAINER) \
+		--network $(DOCKER_NETWORK) \
 		$(GPU_FLAG) \
 		--ipc=host \
 		-p $(PORT):8000 \
@@ -116,15 +136,16 @@ run-llm: stop-llm
 		--tensor-parallel-size $(TP_SIZE) \
 		--enable-prefix-caching \
 		$(EXTRA_ARGS)
+	docker logs $(LLM_CONTAINER) --follow
 
 # 2×RTX 3090 tuning helpers (24 GB each)
 
-# Qwen3-VL 30B FP8 (safety-first profile)
+# Qwen3-32B AWQ (safety-first profile)
 run-qwen3:
-	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+	$(MAKE) run-llm PRESET=QWEN3_32B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.76 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
 
 run-qwen3-fast:
-	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.83 MAX_MODEL_LEN=6144 EXTRA_ARGS="--max-num-seqs 3"
+	$(MAKE) run-llm PRESET=QWEN3_32B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
 
 # Qwen3 32B AWQ (dual GPU first-pass profile)
 run-qwen3-32b:
@@ -154,9 +175,13 @@ run-qwen2-vl-2b:
 run-qwen2-vl-7b-awq:
 	$(MAKE) run-llm PRESET=QWEN2_VL_7B_AWQ GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
-# Mistral Devstral Small 24B (vLLM image tuned for this preset)
+# Mistral Devstral Small 24B (FP8, long-context, single-user tuned)
 run-devstral-small-24b:
-	$(MAKE) run-llm PRESET=DEVSTRAL_SMALL_24B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+	$(MAKE) run-llm PRESET=DEVSTRAL_SMALL_24B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.78 MAX_MODEL_LEN=65536 EXTRA_ARGS="--max-num-seqs 1"
+
+# Mistral Devstral Small 24B (same model, smaller context for extra safety)
+run-devstral-small-24b-fast:
+	$(MAKE) run-llm PRESET=DEVSTRAL_SMALL_24B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=32768 EXTRA_ARGS="--max-num-seqs 1"
 
 # DeepSeek R1 Distill Qwen 32B (dual GPU first-pass profile)
 run-deepseek:
@@ -172,6 +197,31 @@ run-qwen2p5-1p5b:
 
 run-vision:
 	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+
+# ── Run: Open WebUI chat frontend ─────────────────────
+
+run-openwebui: stop-openwebui
+	docker network inspect $(DOCKER_NETWORK) >/dev/null 2>&1 || docker network create $(DOCKER_NETWORK)
+	docker run -d \
+		--name $(OPEN_WEBUI_CONTAINER) \
+		--network $(DOCKER_NETWORK) \
+		-p $(OPEN_WEBUI_PORT):8080 \
+		-v $(OPEN_WEBUI_DATA):/app/backend/data \
+		--restart unless-stopped \
+		-e WEBUI_AUTH=false \
+		-e OPENAI_API_BASE_URL=$(OPEN_WEBUI_VLLM_BASE_URL) \
+		-e OPENAI_API_BASE_URLS=$(OPEN_WEBUI_VLLM_BASE_URL) \
+		-e OPENAI_API_KEY=$(OPEN_WEBUI_VLLM_API_KEY) \
+		-e OPENAI_API_KEYS=$(OPEN_WEBUI_VLLM_API_KEY) \
+		$(OPEN_WEBUI_IMAGE)
+
+run-openwebui-with-llm:
+	$(MAKE) run-llm PRESET=$(OPEN_WEBUI_PRESET) GPU=$(OPEN_WEBUI_GPU) >/tmp/run-llm.log 2>&1 & \
+	sleep 1
+	$(MAKE) run-openwebui
+
+open-openwebui:
+	@nohup chromium --new-tab http://localhost:$(OPEN_WEBUI_PORT) >/tmp/openwebui.log 2>&1 &
 
 # ── Run: llama.cpp embedding server ────────────────────
 
@@ -228,6 +278,10 @@ stop-llama-llm:
 	docker stop llama-llm 2>/dev/null || true
 	docker rm llama-llm 2>/dev/null || true
 
+stop-openwebui:
+	docker stop $(OPEN_WEBUI_CONTAINER) 2>/dev/null || true
+	docker rm $(OPEN_WEBUI_CONTAINER) 2>/dev/null || true
+
 # ── Logs ────────────────────────────────────────────────
 
 logs:
@@ -245,6 +299,9 @@ logs-llm:
 logs-embed:
 	docker logs -f llama-embed
 
+logs-openwebui:
+	docker logs -f $(OPEN_WEBUI_CONTAINER)
+
 # ── Healthcheck ─────────────────────────────────────────
 
 healthcheck:
@@ -256,6 +313,8 @@ healthcheck-llm:
 healthcheck-embed:
 	@curl -sf http://localhost:$(LLAMA_PORT)/health && echo "healthy" || echo "unhealthy"
 
+healthcheck-openwebui:
+	@curl -sf http://localhost:$(OPEN_WEBUI_PORT)/health && echo "healthy" || echo "unhealthy"
 
 # ── Utility ─────────────────────────────────────────────
 
