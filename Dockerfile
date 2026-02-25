@@ -1,4 +1,4 @@
-FROM vllm/vllm-openai:latest
+FROM vllm/vllm-openai:0.15.1-cu130
 
 ENV PYTHONUNBUFFERED=1
 

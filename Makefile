@@ -4,7 +4,7 @@
 
 # ── Images ──────────────────────────────────────────────
 IMAGE_NAME   := vllm/vllm-openai
-IMAGE_TAG    := latest
+IMAGE_TAG    := 0.15.1-cu130
 IMAGE        := $(IMAGE_NAME):$(IMAGE_TAG)
 
 LLAMA_IMAGE_NAME := local/llama-server
