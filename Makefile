@@ -3,8 +3,8 @@
 # Tuned for dual-GPU setup (e.g. 2× RTX 3090 24GB), with small models defaulting to GPU1
 
 # ── Images ──────────────────────────────────────────────
-IMAGE_NAME   := local/vllm-qwen
-IMAGE_TAG    := 0.11.0
+IMAGE_NAME   := vllm/vllm-openai
+IMAGE_TAG    := latest
 IMAGE        := $(IMAGE_NAME):$(IMAGE_TAG)
 
 LLAMA_IMAGE_NAME := local/llama-server
@@ -48,9 +48,6 @@ ifdef PRESET
   MODEL_PATH := $(PRESET_$(PRESET))
   ifeq ($(MODEL_PATH),)
     $(error Unknown preset: $(PRESET). Run "make presets" to list available presets.)
-  endif
-  ifeq ($(PRESET),DEVSTRAL_SMALL_24B)
-    IMAGE := vllm/vllm-openai:v0.12.0
   endif
 endif
 
@@ -110,7 +107,7 @@ setup:
 	mkdir -p $(CACHE_PATH)
 
 build:
-	docker build -t $(IMAGE) .
+	docker pull $(IMAGE)
 
 build-llama:
 	docker build -t $(LLAMA_IMAGE) -f Dockerfile.llamacpp .
