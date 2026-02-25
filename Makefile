@@ -187,9 +187,9 @@ run-devstral-small-24b-fast:
 run-deepseek:
 	$(MAKE) run-llm PRESET=DEEPSEEK_R1_QWEN_32B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.72 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
 
-# Phi-3.5 Mini instruct (single GPU, GPU1 default)
+# Phi-3.5 Mini instruct (single GPU, GPU1 default, low-concurrency + longer context)
 run-phi3p5-mini:
-	$(MAKE) run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.90 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+	$(MAKE) run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.92 MAX_MODEL_LEN=16384 EXTRA_ARGS="--max-num-seqs 1 --max-num-batched-tokens 4096"
 
 # Qwen2.5-Instruct-1.5B (single GPU, GPU1 default)
 run-qwen2p5-1p5b:

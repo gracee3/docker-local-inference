@@ -43,6 +43,7 @@ Preset-aware helpers:
 
 ```bash
 make run-qwen7b           # default fast chat/instruct profile (no-eager, single GPU)
+make run-phi3p5-mini      # Phi-3.5 Mini, low-concurrency + 16k context profile
 make run-qwen3            # uses QWEN3_32B_AWQ (safe profile)
 make run-qwen3-fast       # uses QWEN3_32B_AWQ (higher throughput profile)
 make run-qwen14           # uses QWEN_14B_AWQ
