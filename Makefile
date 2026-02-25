@@ -78,8 +78,8 @@ OPEN_WEBUI_DATA := $(HOME)/.local/share/open-webui
 OPEN_WEBUI_HOST_ADDR := vllm-qwen
 OPEN_WEBUI_VLLM_BASE_URL := http://$(OPEN_WEBUI_HOST_ADDR):$(PORT)/v1
 OPEN_WEBUI_VLLM_API_KEY := local
-OPEN_WEBUI_PRESET ?= QWEN3_32B_AWQ
-OPEN_WEBUI_GPU ?= all
+OPEN_WEBUI_PRESET ?= QWEN_7B_AWQ
+OPEN_WEBUI_GPU ?= 1
 DOCKER_NETWORK ?= local-inference-net
 
 # ── Container names ────────────────────────────────────
@@ -163,9 +163,9 @@ run-qwen14:
 run-qwen14-balanced:
 	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=12288 EXTRA_ARGS="--max-num-seqs 1"
 
-# Qwen2.5-7B-AWQ (single GPU, GPU1 default)
+# Qwen2.5-7B-AWQ (single GPU, GPU1 default, fast default target for terminal/agents)
 run-qwen7b:
-	$(MAKE) run-llm PRESET=QWEN_7B_AWQ GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+	$(MAKE) run-llm PRESET=QWEN_7B_AWQ GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.88 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2 --max-num-batched-tokens 4096"
 
 # Qwen2-VL-2B-Instruct (single GPU, GPU1 default)
 run-qwen2-vl-2b:
