@@ -4,10 +4,10 @@
 
 # ── Images ──────────────────────────────────────────────
 IMAGE_NAME   := vllm/vllm-openai
-IMAGE_TAG    := 0.15.1-cu130
-IMAGE_FALLBACK_TAG := 0.15.1
+IMAGE_TAG    := latest
 IMAGE        := $(IMAGE_NAME):$(IMAGE_TAG)
-IMAGE_FALLBACK := $(IMAGE_NAME):$(IMAGE_FALLBACK_TAG)
+IMAGE_FALLBACK := $(IMAGE_NAME):latest
+IMAGE_CANDIDATES := $(IMAGE) $(IMAGE_FALLBACK)
 
 LLAMA_IMAGE_NAME := local/llama-server
 LLAMA_IMAGE_TAG  := latest
@@ -109,16 +109,40 @@ setup:
 	mkdir -p $(CACHE_PATH)
 
 build:
-	@docker pull $(IMAGE) || \
-	  (echo "Image $(IMAGE) not found. Falling back to $(IMAGE_FALLBACK)." && docker pull $(IMAGE_FALLBACK))
+	@resolved_image=""; \
+	for image in $(IMAGE_CANDIDATES); do \
+		echo "Checking $$image"; \
+		if docker pull $$image >/dev/null 2>&1; then \
+			resolved_image=$$image; \
+			echo "Using vLLM image $$resolved_image"; \
+			break; \
+		fi; \
+		echo "Image $$image not available. Trying next..."; \
+	done; \
+	if [ -z "$$resolved_image" ]; then \
+		echo "No usable vLLM image found in: $(IMAGE_CANDIDATES)"; \
+		exit 1; \
+	fi
 
 build-llama:
 	docker build -t $(LLAMA_IMAGE) -f Dockerfile.llamacpp .
 
 # ── Run: vLLM LLM server ───────────────────────────────
 
-run-llm: stop-llm
+run-llm: stop-llm build
 	docker network inspect $(DOCKER_NETWORK) >/dev/null 2>&1 || docker network create $(DOCKER_NETWORK)
+	resolved_image=""; \
+	for image in $(IMAGE_CANDIDATES); do \
+		if docker manifest inspect $$image >/dev/null 2>&1; then \
+			resolved_image=$$image; \
+			echo "Using vLLM image $$resolved_image"; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "$$resolved_image" ]; then \
+		echo "No usable vLLM image found in: $(IMAGE_CANDIDATES)"; \
+		exit 1; \
+	fi; \
 	docker run -d \
 		--name $(LLM_CONTAINER) \
 		--network $(DOCKER_NETWORK) \
@@ -128,7 +152,7 @@ run-llm: stop-llm
 		-v $(MODEL_PATH):/model:ro \
 		-v $(CACHE_PATH):/cache \
 		--restart unless-stopped \
-		$$(docker manifest inspect $(IMAGE) >/dev/null 2>&1 && echo $(IMAGE) || (echo "Image $(IMAGE) not found. Falling back to $(IMAGE_FALLBACK)." >&2; echo $(IMAGE_FALLBACK)) ) \
+		$$resolved_image \
 		--model /model \
 		--host 0.0.0.0 --port 8000 \
 		--gpu-memory-utilization $(GPU_MEM_UTIL) \
