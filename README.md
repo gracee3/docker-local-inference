@@ -23,17 +23,18 @@ cd backend && cargo run
 The following presets resolve to model folders in this machine’s `/data/models`.
 
 ```bash
-make run-llm PRESET=QWEN_14B_AWQ GPU=0
-make run-llm PRESET=QWEN_7B_AWQ GPU=0
-make run-llm PRESET=QWEN_VL_2B GPU=0
-make run-llm PRESET=QWEN2_VL_7B_AWQ GPU=0
+# default small-model runs below use GPU1
+make run-llm PRESET=QWEN_14B_AWQ GPU=all
+make run-llm PRESET=QWEN_7B_AWQ GPU=1
+make run-llm PRESET=QWEN_VL_2B GPU=1
+make run-llm PRESET=QWEN2_VL_7B_AWQ GPU=1
 make run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all
-make run-llm PRESET=DEVSTRAL_SMALL_24B GPU=0
-make run-llm PRESET=DEEPSEEK_R1_QWEN_32B GPU=0
-make run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=0
-make run-llm PRESET=QWEN2P5_INSTRUCT_1P5B GPU=0
-make run-llm PRESET=QWEN3_32B_AWQ GPU=0
-make run-llm PRESET=QWEN3_CODER_30B_A3B_INSTRUCT GPU=0
+make run-llm PRESET=DEVSTRAL_SMALL_24B GPU=all
+make run-llm PRESET=DEEPSEEK_R1_QWEN_32B GPU=all
+make run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=1
+make run-llm PRESET=QWEN2P5_INSTRUCT_1P5B GPU=1
+make run-llm PRESET=QWEN3_32B_AWQ GPU=all
+make run-llm PRESET=QWEN3_CODER_30B_A3B_INSTRUCT GPU=all
 ```
 
 Preset-aware helpers:
@@ -43,7 +44,7 @@ make run-qwen3            # uses QWEN3_VL_30B_FP8 (safe profile)
 make run-qwen3-fast       # uses QWEN3_VL_30B_FP8 (higher throughput profile)
 make run-qwen14           # uses QWEN_14B_AWQ
 make run-qwen14-balanced  # uses QWEN_14B_AWQ
-make run-vision           # runs VISION_MODEL from Makefile
+make run-vision           # uses PRESET=QWEN3_VL_30B_FP8 on all GPUs
 ```
 
 Common commands:
@@ -59,7 +60,7 @@ make stop-all
 You can always set a custom path directly:
 
 ```bash
-make run-llm MODEL_PATH=/data/models/<your-model-folder> GPU=0
+make run-llm MODEL_PATH=/data/models/<your-model-folder> GPU=1
 ```
 
 ## llama.cpp (optional, keep for later use)
@@ -69,7 +70,7 @@ The llama.cpp path is used for GGUF and embedding-style models.
 ```bash
 make build-llama
 make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
-make run-llama-llm PRESET=QWEN_CODER_7B_Q8 GPU=0
+make run-llama-llm PRESET=QWEN_CODER_7B_Q8 GPU=1
 ```
 
 Useful checks for llama containers:

@@ -1,6 +1,6 @@
 # Local LLM / Embedding Server
 # Supports vLLM (AWQ/GPTQ/FP16) and llama.cpp (GGUF)
-# Tuned for dual-GPU setup (e.g. 2× RTX 3090 24GB)
+# Tuned for dual-GPU setup (e.g. 2× RTX 3090 24GB), with small models defaulting to GPU1
 
 # ── Images ──────────────────────────────────────────────
 IMAGE_NAME   := local/vllm-qwen
@@ -12,8 +12,8 @@ LLAMA_IMAGE_TAG  := latest
 LLAMA_IMAGE      := $(LLAMA_IMAGE_NAME):$(LLAMA_IMAGE_TAG)
 
 # ── GPU pinning ─────────────────────────────────────────
-# GPU=0, GPU=1, or GPU=all (default)
-GPU := all
+# GPU=0, GPU=1, or GPU=all (default: 1)
+GPU := 1
 
 ifeq ($(GPU),all)
   GPU_FLAG := --gpus all
@@ -22,7 +22,7 @@ else
 endif
 
 # ── Model presets ───────────────────────────────────────
-# Usage: make run-llm PRESET=QWEN_14B_AWQ GPU=0
+# Usage: make run-llm PRESET=QWEN_14B_AWQ GPU=all
 #        make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
 
 PRESET_QWEN_14B_AWQ         := /data/models/qwen2p5-14b-instruct-awq
@@ -71,12 +71,7 @@ LLAMA_POOLING      := last
 # ── Container names ────────────────────────────────────
 CONTAINER_NAME := vllm-qwen
 LLM_CONTAINER ?= vllm-qwen
-CONTAINERS     := vllm-qwen vllm-small vllm-vision llama-llm llama-embed
-SMALL_PORT     ?= 8002
-
-# Vision model configuration
-# VISION_MODEL := /data/models/qwen2-vl-7b-instruct-awq
-VISION_MODEL := /data/models/qwen3-vl-30b-a3b-thinking-fp8
+CONTAINERS     := vllm-qwen llama-llm llama-embed
 
 # Tuning notes (RTX 5000 16GB / RTX 3090 24GB):
 #   Default (stable): GPU_MEM_UTIL=0.85, MAX_MODEL_LEN=4096
@@ -84,11 +79,11 @@ VISION_MODEL := /data/models/qwen3-vl-30b-a3b-thinking-fp8
 #   Experimental: GPU_MEM_UTIL=0.88, MAX_MODEL_LEN=6144 (may OOM on warmup)
 
 .PHONY: setup build build-llama \
-	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-balanced run-qwen14-sidecar \
+	run-llm run-vision run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-balanced \
 	run-qwen7b run-qwen2-vl-2b run-qwen2-vl-7b-awq run-devstral-small-24b run-deepseek run-phi3p5-mini run-qwen2p5-1p5b run-qwen3-32b run-qwen3-coder \
-	stop stop-all stop-llm stop-embed stop-llama-llm stop-small \
-	logs logs-llm logs-embed logs-small \
-	healthcheck healthcheck-llm healthcheck-embed healthcheck-small \
+	stop stop-all stop-llm stop-embed stop-llama-llm \
+	logs logs-llm logs-embed \
+	healthcheck healthcheck-llm healthcheck-embed \
 	models shell clean clean-all presets
 
 # ── Setup / Build ───────────────────────────────────────
@@ -102,56 +97,7 @@ build:
 build-llama:
 	docker build -t $(LLAMA_IMAGE) -f Dockerfile.llamacpp .
 
-# ── Run: vLLM (legacy targets, backwards-compatible) ───
-
-run: stop-all
-	docker run --rm -it \
-		--name $(CONTAINER_NAME) \
-		$(GPU_FLAG) \
-		--ipc=host \
-		-p $(PORT):8000 \
-		-v $(MODEL_PATH):/model:ro \
-		-v $(CACHE_PATH):/cache \
-		$(IMAGE) \
-		--model /model \
-		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization $(GPU_MEM_UTIL) \
-		--max-model-len $(MAX_MODEL_LEN) \
-		--enable-prefix-caching
-
-run-detached: stop-all
-	docker run -d \
-		--name $(CONTAINER_NAME) \
-		$(GPU_FLAG) \
-		--ipc=host \
-		-p $(PORT):8000 \
-		-v $(MODEL_PATH):/model:ro \
-		-v $(CACHE_PATH):/cache \
-		--restart unless-stopped \
-		$(IMAGE) \
-		--model /model \
-		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization $(GPU_MEM_UTIL) \
-		--max-model-len $(MAX_MODEL_LEN) \
-		--enable-prefix-caching
-
-run-experimental: stop-all
-	docker run --rm -it \
-		--name $(CONTAINER_NAME) \
-		$(GPU_FLAG) \
-		--ipc=host \
-		-p $(PORT):8000 \
-		-v $(MODEL_PATH):/model:ro \
-		-v $(CACHE_PATH):/cache \
-		$(IMAGE) \
-		--model /model \
-		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization 0.88 \
-		--max-model-len 6144 \
-		--enable-prefix-caching \
-		--enforce-eager
-
-# ── Run: vLLM LLM server (new target) ──────────────────
+# ── Run: vLLM LLM server ───────────────────────────────
 
 run-llm: stop-llm
 	docker run -d \
@@ -196,17 +142,17 @@ run-qwen14:
 run-qwen14-balanced:
 	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=12288 EXTRA_ARGS="--max-num-seqs 1"
 
-# Qwen2.5-7B-AWQ (dual GPU)
+# Qwen2.5-7B-AWQ (single GPU, GPU1 default)
 run-qwen7b:
-	$(MAKE) run-llm PRESET=QWEN_7B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.84 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+	$(MAKE) run-llm PRESET=QWEN_7B_AWQ GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
-# Qwen2-VL-2B-Instruct (dual GPU)
+# Qwen2-VL-2B-Instruct (single GPU, GPU1 default)
 run-qwen2-vl-2b:
-	$(MAKE) run-llm PRESET=QWEN_VL_2B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.84 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 3"
+	$(MAKE) run-llm PRESET=QWEN_VL_2B GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.88 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
-# Qwen2-VL-7B-AWQ (dual GPU)
+# Qwen2-VL-7B-AWQ (single GPU, GPU1 default)
 run-qwen2-vl-7b-awq:
-	$(MAKE) run-llm PRESET=QWEN2_VL_7B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.82 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 3"
+	$(MAKE) run-llm PRESET=QWEN2_VL_7B_AWQ GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
 # Mistral Devstral Small 24B (vLLM image tuned for this preset)
 run-devstral-small-24b:
@@ -216,35 +162,16 @@ run-devstral-small-24b:
 run-deepseek:
 	$(MAKE) run-llm PRESET=DEEPSEEK_R1_QWEN_32B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.72 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
 
-# Phi-3.5 Mini instruct (dual GPU)
+# Phi-3.5 Mini instruct (single GPU, GPU1 default)
 run-phi3p5-mini:
-	$(MAKE) run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=6144 EXTRA_ARGS="--max-num-seqs 2"
+	$(MAKE) run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.90 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
-# Qwen2.5-Instruct-1.5B (dual GPU, conservative headroom)
+# Qwen2.5-Instruct-1.5B (single GPU, GPU1 default)
 run-qwen2p5-1p5b:
-	$(MAKE) run-llm PRESET=QWEN2P5_INSTRUCT_1P5B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+	$(MAKE) run-llm PRESET=QWEN2P5_INSTRUCT_1P5B GPU=1 TP_SIZE=1 GPU_MEM_UTIL=0.90 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
 
 run-vision:
 	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
-
-# Optional sidecar small model on a separate port so it can run alongside Qwen3
-run-qwen14-sidecar: stop-small
-	docker run -d \
-		--name vllm-small \
-		--gpus '"device=0"' \
-		--ipc=host \
-		-p $(SMALL_PORT):8000 \
-		-v $(PRESET_QWEN_14B_AWQ):/model:ro \
-		-v $(CACHE_PATH):/cache \
-		--restart unless-stopped \
-		$(IMAGE) \
-		--model /model \
-		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization 0.68 \
-		--max-model-len 6144 \
-		--tensor-parallel-size 1 \
-		--enable-prefix-caching \
-		--max-num-seqs 1
 
 # ── Run: llama.cpp embedding server ────────────────────
 
@@ -301,10 +228,6 @@ stop-llama-llm:
 	docker stop llama-llm 2>/dev/null || true
 	docker rm llama-llm 2>/dev/null || true
 
-stop-small:
-	docker stop vllm-small 2>/dev/null || true
-	docker rm vllm-small 2>/dev/null || true
-
 # ── Logs ────────────────────────────────────────────────
 
 logs:
@@ -322,9 +245,6 @@ logs-llm:
 logs-embed:
 	docker logs -f llama-embed
 
-logs-small:
-	docker logs -f vllm-small
-
 # ── Healthcheck ─────────────────────────────────────────
 
 healthcheck:
@@ -336,8 +256,6 @@ healthcheck-llm:
 healthcheck-embed:
 	@curl -sf http://localhost:$(LLAMA_PORT)/health && echo "healthy" || echo "unhealthy"
 
-healthcheck-small:
-	@curl -sf http://localhost:$(SMALL_PORT)/health && echo "healthy" || echo "unhealthy"
 
 # ── Utility ─────────────────────────────────────────────
 

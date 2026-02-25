@@ -23,8 +23,7 @@ NOMIC_EMBED_CODE_Q6          /data/models/nomic-embed-code-q6-k             llam
 Usage:
   make run-qwen3            # Qwen3 safe profile (concurrency capped via --max-num-seqs 2)
   make run-qwen3-fast       # Qwen3 high-throughput profile
-  make run-qwen14           # Qwen2.5-14B single-GPU default
-  make run-qwen14-sidecar   # Qwen2.5-14B on :8002 alongside Qwen3
+  make run-qwen14           # Qwen2.5-14B dual-GPU baseline
   make run-embed PRESET=NOMIC_EMBED_CODE_Q6 GPU=1
-  make run-llama-llm PRESET=QWEN_CODER_7B_Q8 GPU=0
+  make run-llama-llm PRESET=QWEN_CODER_7B_Q8 GPU=1
 EOF
