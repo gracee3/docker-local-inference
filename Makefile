@@ -85,6 +85,7 @@ VISION_MODEL := /data/models/qwen3-vl-30b-a3b-thinking-fp8
 
 .PHONY: setup build build-llama \
 	run run-detached run-vision run-experimental run-llm run-embed run-llama-llm run-qwen3 run-qwen3-fast run-qwen14 run-qwen14-balanced run-qwen14-sidecar \
+	run-qwen7b run-qwen2-vl-2b run-qwen2-vl-7b-awq run-devstral-small-24b run-deepseek run-phi3p5-mini run-qwen2p5-1p5b run-qwen3-32b run-qwen3-coder \
 	stop stop-all stop-llm stop-embed stop-llama-llm stop-small \
 	logs logs-llm logs-embed logs-small \
 	healthcheck healthcheck-llm healthcheck-embed healthcheck-small \
@@ -134,22 +135,6 @@ run-detached: stop-all
 		--max-model-len $(MAX_MODEL_LEN) \
 		--enable-prefix-caching
 
-run-vision: stop-all
-	docker run -d \
-		--name vllm-vision \
-		$(GPU_FLAG) \
-		--ipc=host \
-		-p $(PORT):8000 \
-		-v $(VISION_MODEL):/model:ro \
-		-v $(CACHE_PATH):/cache \
-		--restart unless-stopped \
-		$(IMAGE) \
-		--model /model \
-		--host 0.0.0.0 --port 8000 \
-		--gpu-memory-utilization $(GPU_MEM_UTIL) \
-		--max-model-len 4096 \
-		--enable-prefix-caching
-
 run-experimental: stop-all
 	docker run --rm -it \
 		--name $(CONTAINER_NAME) \
@@ -186,26 +171,61 @@ run-llm: stop-llm
 		--enable-prefix-caching \
 		$(EXTRA_ARGS)
 
-# Qwen3-VL 30B FP8 (safety-first profile on 2 GPUs)
-# Example:
-#   make run-qwen3
-#   make run-qwen3 GPU=0 TP_SIZE=1
+# 2×RTX 3090 tuning helpers (24 GB each)
+
+# Qwen3-VL 30B FP8 (safety-first profile)
 run-qwen3:
 	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
 
-# Qwen3-VL 30B FP8 (still capped to 2 sequences, less conservative headroom)
 run-qwen3-fast:
-	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.83 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.83 MAX_MODEL_LEN=6144 EXTRA_ARGS="--max-num-seqs 3"
 
-# Qwen2.5-14B-AWQ on a single GPU, context-first profile
-# Concurrency is intentionally capped at 1 for max safety/headroom.
+# Qwen3 32B AWQ (dual GPU first-pass profile)
+run-qwen3-32b:
+	$(MAKE) run-llm PRESET=QWEN3_32B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.76 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
+
+# Qwen3 30B coder A3B instruct (dual GPU first-pass profile)
+run-qwen3-coder:
+	$(MAKE) run-llm PRESET=QWEN3_CODER_30B_A3B_INSTRUCT GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.76 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
+
+# Qwen2.5-14B-AWQ (dual GPU baseline)
 run-qwen14:
-	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.76 MAX_MODEL_LEN=12288 EXTRA_ARGS="--max-num-seqs 1"
+	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.78 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 2"
 
-# Qwen2.5-14B-AWQ on a single GPU, balanced profile
-# Keeps concurrency at 2 while preserving good context window.
+# Qwen2.5-14B-AWQ (more context headroom)
 run-qwen14-balanced:
-	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=0 TP_SIZE=1 GPU_MEM_UTIL=0.78 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 2"
+	$(MAKE) run-llm PRESET=QWEN_14B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=12288 EXTRA_ARGS="--max-num-seqs 1"
+
+# Qwen2.5-7B-AWQ (dual GPU)
+run-qwen7b:
+	$(MAKE) run-llm PRESET=QWEN_7B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.84 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+
+# Qwen2-VL-2B-Instruct (dual GPU)
+run-qwen2-vl-2b:
+	$(MAKE) run-llm PRESET=QWEN_VL_2B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.84 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 3"
+
+# Qwen2-VL-7B-AWQ (dual GPU)
+run-qwen2-vl-7b-awq:
+	$(MAKE) run-llm PRESET=QWEN2_VL_7B_AWQ GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.82 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 3"
+
+# Mistral Devstral Small 24B (vLLM image tuned for this preset)
+run-devstral-small-24b:
+	$(MAKE) run-llm PRESET=DEVSTRAL_SMALL_24B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
+
+# DeepSeek R1 Distill Qwen 32B (dual GPU first-pass profile)
+run-deepseek:
+	$(MAKE) run-llm PRESET=DEEPSEEK_R1_QWEN_32B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.72 MAX_MODEL_LEN=3072 EXTRA_ARGS="--max-num-seqs 1"
+
+# Phi-3.5 Mini instruct (dual GPU)
+run-phi3p5-mini:
+	$(MAKE) run-llm PRESET=PHI3P5_MINI_INSTRUCT GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=6144 EXTRA_ARGS="--max-num-seqs 2"
+
+# Qwen2.5-Instruct-1.5B (dual GPU, conservative headroom)
+run-qwen2p5-1p5b:
+	$(MAKE) run-llm PRESET=QWEN2P5_INSTRUCT_1P5B GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.86 MAX_MODEL_LEN=8192 EXTRA_ARGS="--max-num-seqs 4"
+
+run-vision:
+	$(MAKE) run-llm PRESET=QWEN3_VL_30B_FP8 GPU=all TP_SIZE=2 GPU_MEM_UTIL=0.80 MAX_MODEL_LEN=4096 EXTRA_ARGS="--max-num-seqs 2"
 
 # Optional sidecar small model on a separate port so it can run alongside Qwen3
 run-qwen14-sidecar: stop-small
