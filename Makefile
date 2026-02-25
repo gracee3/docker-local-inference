@@ -5,7 +5,9 @@
 # ── Images ──────────────────────────────────────────────
 IMAGE_NAME   := vllm/vllm-openai
 IMAGE_TAG    := 0.15.1-cu130
+IMAGE_FALLBACK_TAG := 0.15.1
 IMAGE        := $(IMAGE_NAME):$(IMAGE_TAG)
+IMAGE_FALLBACK := $(IMAGE_NAME):$(IMAGE_FALLBACK_TAG)
 
 LLAMA_IMAGE_NAME := local/llama-server
 LLAMA_IMAGE_TAG  := latest
@@ -107,7 +109,8 @@ setup:
 	mkdir -p $(CACHE_PATH)
 
 build:
-	docker pull $(IMAGE)
+	@docker pull $(IMAGE) || \
+	  (echo "Image $(IMAGE) not found. Falling back to $(IMAGE_FALLBACK)." && docker pull $(IMAGE_FALLBACK))
 
 build-llama:
 	docker build -t $(LLAMA_IMAGE) -f Dockerfile.llamacpp .
@@ -125,7 +128,7 @@ run-llm: stop-llm
 		-v $(MODEL_PATH):/model:ro \
 		-v $(CACHE_PATH):/cache \
 		--restart unless-stopped \
-		$(IMAGE) \
+		$$(docker manifest inspect $(IMAGE) >/dev/null 2>&1 && echo $(IMAGE) || (echo "Image $(IMAGE) not found. Falling back to $(IMAGE_FALLBACK)." >&2; echo $(IMAGE_FALLBACK)) ) \
 		--model /model \
 		--host 0.0.0.0 --port 8000 \
 		--gpu-memory-utilization $(GPU_MEM_UTIL) \

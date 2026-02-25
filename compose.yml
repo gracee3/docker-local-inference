@@ -7,7 +7,7 @@
 
 services:
   llm:
-    image: vllm/vllm-openai:0.15.1-cu130
+    image: vllm/vllm-openai:0.15.1
     container_name: vllm-qwen
     ipc: host
     ports:
